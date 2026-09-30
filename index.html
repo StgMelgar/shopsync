@@ -1,0 +1,186 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ShopSync</title>
+<meta name="description" content="Machine monitoring for small CNC job shops, built on the shop floor.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: machine-control panel. A left-aligned headline beside a live-looking floor board, then plain spec rows like a machine nameplate. */
+:root {
+  --bg: #eef0ef;
+  --panel: #f8f9f8;
+  --ink: #16191b;
+  --muted: #5a6166;
+  --line: #cfd4d3;
+  --accent: #e0a100;      /* safety yellow */
+  --accent-ink: #16191b;
+  --run: #1f9d55;
+  --hold: #d99a00;
+  --alarm: #d0342c;
+  --idle: #8a9196;
+  --display: "Barlow Condensed", "Arial Narrow", Arial, sans-serif;
+  --body: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #121517; --panel: #1a1e21; --ink: #e8ecec; --muted: #9aa3a8; --line: #2c3236;
+    --accent: #f2b41c; --accent-ink: #121517; --run: #34c173; --hold: #f2b41c; --alarm: #ef5a50; --idle: #6f777c;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #121517; --panel: #1a1e21; --ink: #e8ecec; --muted: #9aa3a8; --line: #2c3236;
+  --accent: #f2b41c; --accent-ink: #121517; --run: #34c173; --hold: #f2b41c; --alarm: #ef5a50; --idle: #6f777c;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--body); font-size: 16px; line-height: 1.6; }
+.wrap { max-width: 1080px; margin: 0 auto; padding-inline: 20px; padding-block: 28px 56px; display: grid; gap: 64px; }
+
+header.top { display: flex; justify-content: space-between; align-items: center; gap: 16px; flex-wrap: wrap; }
+.brand { display: flex; align-items: center; gap: 10px; font-family: var(--display); font-weight: 700; font-size: 26px; letter-spacing: .02em; text-transform: uppercase; }
+.stack { display: grid; gap: 2px; }
+.stack i { width: 10px; height: 6px; border-radius: 1px; display: block; }
+.stack i:nth-child(1) { background: var(--alarm); } .stack i:nth-child(2) { background: var(--hold); } .stack i:nth-child(3) { background: var(--run); }
+.tag { font-family: var(--mono); font-size: 12px; color: var(--muted); letter-spacing: .06em; text-transform: uppercase; }
+
+.hero { display: grid; grid-template-columns: 1.05fr 1fr; gap: 48px; align-items: center; }
+.hero > * { min-width: 0; }
+h1 { font-family: var(--display); font-weight: 700; font-size: clamp(44px, 7vw, 76px); line-height: .95; text-transform: uppercase; letter-spacing: .005em; margin: 0 0 20px; text-wrap: balance; }
+h1 mark { background: var(--accent); color: var(--accent-ink); padding: 0 .12em; }
+.lede { font-size: 18px; color: var(--muted); max-width: 34em; margin: 0 0 28px; }
+.facts { display: flex; flex-wrap: wrap; gap: 28px; margin: 0; padding: 0; list-style: none; }
+.facts b { display: block; font-family: var(--display); font-size: 40px; line-height: 1; font-weight: 600; font-variant-numeric: tabular-nums; }
+.facts span { font-size: 13px; color: var(--muted); }
+
+.board { background: var(--panel); border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
+.board-head { display: flex; justify-content: space-between; gap: 12px; padding: 12px 16px; border-bottom: 1px solid var(--line); font-family: var(--mono); font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; }
+.rows { display: grid; }
+.row { display: grid; grid-template-columns: 12px 1fr auto auto; gap: 14px; align-items: center; padding: 11px 16px; border-bottom: 1px solid var(--line); font-size: 14px; }
+.row:last-child { border-bottom: 0; }
+.dot { width: 10px; height: 10px; border-radius: 50%; }
+.run .dot { background: var(--run); } .hold .dot { background: var(--hold); } .alarm .dot { background: var(--alarm); } .idle .dot { background: var(--idle); }
+.m { font-weight: 600; }
+.m small { display: block; font-weight: 400; color: var(--muted); font-size: 12px; }
+.prog { font-family: var(--mono); font-size: 13px; color: var(--muted); }
+.state { font-family: var(--mono); font-size: 11px; font-weight: 500; letter-spacing: .06em; padding: 3px 8px; border-radius: 3px; border: 1px solid currentColor; min-width: 86px; text-align: center; }
+.run .state { color: var(--run); } .hold .state { color: var(--hold); } .alarm .state { color: var(--alarm); } .idle .state { color: var(--idle); }
+.board-foot { padding: 10px 16px; font-size: 12px; color: var(--muted); border-top: 1px solid var(--line); }
+@media (prefers-reduced-motion: no-preference) { .alarm .dot { animation: blink 1.2s steps(2) infinite; } }
+@keyframes blink { 50% { opacity: .25; } }
+
+h2 { font-family: var(--display); font-weight: 600; font-size: 34px; text-transform: uppercase; line-height: 1.05; margin: 0 0 8px; text-wrap: balance; }
+.sec-intro { color: var(--muted); max-width: 40em; margin: 0 0 28px; }
+.plate { border-top: 2px solid var(--ink); }
+.plate-row { display: grid; grid-template-columns: 220px 1fr; gap: 24px; padding: 18px 0; border-bottom: 1px solid var(--line); }
+.plate-row > * { min-width: 0; }
+.plate-row dt { font-family: var(--mono); font-size: 13px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); padding-top: 2px; }
+.plate-row dd { margin: 0; max-width: 60ch; }
+.plate-row dd strong { display: block; font-weight: 600; }
+
+.story { display: grid; grid-template-columns: 1fr 1.4fr; gap: 48px; }
+.story > * { min-width: 0; }
+.story p { margin: 0 0 14px; max-width: 62ch; }
+
+.contact { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 20px; background: var(--ink); color: var(--bg); padding: 28px; border-radius: 6px; }
+.contact h2 { color: var(--bg); margin: 0; }
+.email { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.email code { font-family: var(--mono); font-size: 16px; background: transparent; user-select: all; }
+.btn { font: 500 13px var(--mono); text-transform: uppercase; letter-spacing: .06em; background: var(--accent); color: var(--accent-ink); border: 0; border-radius: 3px; padding: 9px 14px; cursor: pointer; }
+.btn:focus-visible, a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+a { color: inherit; }
+footer { font-size: 13px; color: var(--muted); display: flex; justify-content: space-between; flex-wrap: wrap; gap: 12px; }
+
+@media (max-width: 820px) {
+  .hero, .story { grid-template-columns: 1fr; gap: 32px; }
+  .plate-row { grid-template-columns: 1fr; gap: 4px; }
+  .wrap { gap: 48px; }
+}
+@media (max-width: 440px) {
+  .row { grid-template-columns: 12px 1fr auto; }
+  .prog { display: none; }
+}
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <header class="top">
+    <div class="brand"><span class="stack" aria-hidden="true"><i></i><i></i><i></i></span>ShopSync</div>
+    <span class="tag">Machine monitoring for job shops</span>
+  </header>
+
+  <section class="hero">
+    <div>
+      <h1>Know what every spindle is doing <mark>right now</mark></h1>
+      <p class="lede">ShopSync connects to the Fanuc and Mazak controls a small job shop already has and shows who's running, who's down, and why. You don't need an MES rollout or an IT department to use it.</p>
+      <ul class="facts">
+        <li><b>10+</b><span>CNC machines monitored</span></li>
+        <li><b>3–6 mo</b><span>running in production</span></li>
+        <li><b>2</b><span>control families: Fanuc, Mazak</span></li>
+      </ul>
+    </div>
+
+    <div class="board" aria-label="Example floor view">
+      <div class="board-head"><span>Floor view</span><span>Shift 1</span></div>
+      <div class="rows">
+        <div class="row run"><span class="dot"></span><span class="m">Mazak VCN-530C<small>Cell 2</small></span><span class="prog">O4417</span><span class="state">RUN</span></div>
+        <div class="row run"><span class="dot"></span><span class="m">Fanuc Robodrill<small>Cell 1</small></span><span class="prog">O1208</span><span class="state">RUN</span></div>
+        <div class="row alarm"><span class="dot"></span><span class="m">Mazak QTN-250<small>Lathes</small></span><span class="prog">O7730</span><span class="state">ALARM</span></div>
+        <div class="row hold"><span class="dot"></span><span class="m">Fanuc 0i-MF mill<small>Cell 3</small></span><span class="prog">O2051</span><span class="state">FEED HOLD</span></div>
+        <div class="row idle"><span class="dot"></span><span class="m">Mazak Integrex<small>Cell 2</small></span><span class="prog">—</span><span class="state">SETUP</span></div>
+      </div>
+      <div class="board-foot">Example layout with illustrative machine names and program numbers.</div>
+    </div>
+  </section>
+
+  <section>
+    <h2>What it does</h2>
+    <p class="sec-intro">It's built for shops with 5 to 50 machines, where the owner walks the floor to find out what's happening.</p>
+    <dl class="plate">
+      <div class="plate-row"><dt>Live status</dt><dd><strong>Run, hold, alarm, idle and setup for every machine</strong>Read straight from the control, so nobody has to fill out a clipboard.</dd></div>
+      <div class="plate-row"><dt>Alarms</dt><dd><strong>Every alarm logged with time and program</strong>Downtime has a cause attached to it, which gives maintenance something to work from.</dd></div>
+      <div class="plate-row"><dt>Setup time</dt><dd><strong>Setups detected automatically, confirmed by the operator</strong>You finally get real setup numbers for quoting and scheduling.</dd></div>
+      <div class="plate-row"><dt>Manager view</dt><dd><strong>Utilization and OEE that match what happened on the floor</strong>Metrics come only from data the machines actually reported. No guessed numbers.</dd></div>
+      <div class="plate-row"><dt>Hardware</dt><dd><strong>Runs on one small box on the shop network</strong>It started on a Raspberry Pi and now runs on an industrial PC. There's no cloud dependency, and your data stays in the building.</dd></div>
+    </dl>
+  </section>
+
+  <section class="story">
+    <h2>Built by the person who fixes the machines</h2>
+    <div>
+      <p>I'm Santiago Melgar, a maintenance technician at a CNC shop in the Bay Area. I work on Fanuc and Mazak controls, servo systems and electrical faults every day.</p>
+      <p>Shops like ours don't have good visibility into their machines. Enterprise monitoring is priced and scoped for big plants, so I built ShopSync myself and put it on our own floor. It has been running production for months.</p>
+      <p>Next up: part tracking across the floor, camera-based machine vision, and AI agents that handle front-office work like quoting and purchase orders.</p>
+    </div>
+  </section>
+
+  <section class="contact">
+    <h2>Talk to the founder</h2>
+    <div class="email">
+      <code id="addr">Santime20@gmail.com</code>
+      <button class="btn" id="copy" type="button">Copy email</button>
+    </div>
+  </section>
+
+  <footer>
+    <span>ShopSync · Tracy, California</span>
+    <a href="https://www.linkedin.com/in/santiago-melgar-58642b320" target="_blank" rel="noopener">LinkedIn</a>
+  </footer>
+</div>
+
+<script>
+document.getElementById('copy').addEventListener('click', function () {
+  var b = this, t = document.getElementById('addr').textContent;
+  var done = function () { b.textContent = 'Copied'; setTimeout(function () { b.textContent = 'Copy email'; }, 1600); };
+  var fallback = function () { var r = document.createRange(); r.selectNodeContents(document.getElementById('addr')); var s = getSelection(); s.removeAllRanges(); s.addRange(r); };
+  try { navigator.clipboard.writeText(t).then(done, fallback); } catch (e) { fallback(); }
+});
+</script>
+</body>
+</html>
